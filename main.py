@@ -46,12 +46,16 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins
+    allow_origins=[
+        "http://localhost:3000",
+        "https://ai-agent-production-ca53.up.railway.app",
+        "https://exciting-integrity-production.up.railway.app",
+        "*"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Initialize pipeline components
 intent_parser = IntentParser()
 planner = Planner()
@@ -160,3 +164,4 @@ def run_server():
 
 if __name__ == "__main__":
     server = run_server()
+

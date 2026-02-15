@@ -1,5 +1,6 @@
 """
 FastAPI Backend - Rule-based UI Generator
+CORS-enabled for Railway deployment
 """
 
 from fastapi import FastAPI, HTTPException
@@ -14,25 +15,6 @@ from planner import Planner
 from code_generator import CodeGenerator
 from code_validator import CodeValidator
 
-# ... rest of your codedef install_package(package):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--quiet"])
-
-# Install dependencies
-try:
-    import uvicorn
-except ImportError:
-    install_package("uvicorn")
-    import uvicorn
-
-try:
-    import nest_asyncio
-except ImportError:
-    install_package("nest_asyncio")
-    import nest_asyncio
-
-# Apply nest_asyncio
-nest_asyncio.apply()
-
 # Initialize FastAPI app
 app = FastAPI(
     title="Rule-Based UI Generator",
@@ -40,7 +22,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CRITICAL: CORS Configuration - Allow ALL origins
+# ===== CRITICAL: CORS CONFIGURATION =====
+# This MUST come before any routes
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins
@@ -48,6 +31,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# =======================================
 
 # Initialize pipeline components
 intent_parser = IntentParser()
@@ -68,19 +52,17 @@ class GenerateResponse(BaseModel):
 
 @app.get("/")
 async def root():
+    """Root endpoint"""
     return {
         "message": "Rule-Based UI Generator API",
         "version": "1.0.0",
-        "status": "running",
-        "endpoints": {
-            "health": "/health",
-            "generate": "/api/generate",
-            "docs": "/docs"
-        }
+        "status": "online",
+        "cors": "enabled"
     }
 
 @app.get("/health")
 async def health_check():
+    """Health check endpoint"""
     return {
         "status": "healthy",
         "pipeline": "rule-based",
@@ -94,12 +76,13 @@ async def health_check():
 
 @app.post("/api/generate", response_model=GenerateResponse)
 async def generate_ui(request: GenerateRequest):
+    """Generate UI from prompt"""
     try:
         prompt = request.prompt.strip()
         if not prompt:
             raise HTTPException(status_code=400, detail="Prompt cannot be empty")
 
-        print(f"📝 Received prompt: {prompt[:50]}...")
+        print(f"📝 Processing: {prompt[:50]}...")
 
         # Step 1: Parse intent
         intent = intent_parser.parse(prompt)
@@ -115,7 +98,7 @@ async def generate_ui(request: GenerateRequest):
         
         # Step 4: Validate code
         validation_result = code_validator.validate(code)
-        print(f"✅ Validation: {'PASS' if validation_result.is_valid else 'FAIL'}")
+        print(f"✅ Valid: {validation_result.is_valid}")
         
         if not validation_result.is_valid:
             code = code_validator.fix_common_issues(code)
@@ -140,47 +123,22 @@ async def generate_ui(request: GenerateRequest):
             }
         )
 
-        print("🎉 Generation complete!")
+        print("🎉 Success!")
         return response
 
     except Exception as e:
         print(f"❌ Error: {str(e)}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-def run_server():
-    """Run the FastAPI server"""
+# This is for Railway - it will run automatically
+if __name__ == "__main__":
+    import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    
-    print("=" * 50)
-    print("🚀 Starting Rule-Based UI Generator")
-    print("=" * 50)
-    print(f"🌐 Port: {port}")
-    print(f"📚 Pipeline: Rule-based (No LLM)")
-    print(f"🔧 CORS: Enabled for all origins")
-    print("=" * 50)
-    
-    config = uvicorn.Config(
+    print(f"🚀 Starting on port {port}")
+    print("🔓 CORS: Enabled for all origins")
+    uvicorn.run(
         app,
         host="0.0.0.0",
         port=port,
-        log_level="info",
-        access_log=True
+        log_level="info"
     )
-    server = uvicorn.Server(config)
-    
-    import asyncio
-    loop = asyncio.get_event_loop()
-    loop.create_task(server.serve())
-    
-    print("✅ Server started!")
-    print(f"📖 API Docs: http://0.0.0.0:{port}/docs")
-    print(f"🏥 Health: http://0.0.0.0:{port}/health")
-    print("=" * 50)
-    
-    return server
-
-if __name__ == "__main__":
-    server = run_server()
-

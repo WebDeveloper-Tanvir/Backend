@@ -6,6 +6,7 @@ No LLM needed - uses templates and pattern matching
 # Install required packages
 import sys
 import subprocess
+import os  # Add os import for PORT environment variable
 
 def install_package(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--quiet"])
@@ -648,7 +649,12 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For testing - restrict in production
+    allow_origins=[
+        "http://localhost:3000",  # Local development
+        "https://ai-agent-production-ca53.up.railway.app",  # Your Railway frontend
+        "https://exciting-integrity-production.up.railway.app",  # Backend (for health checks)
+        "*"  # Allow all origins (remove this in production if you want stricter security)
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -843,16 +849,19 @@ async def get_examples():
 # Run the application
 def run_server():
     """Run the FastAPI server"""
+    # Get port from environment (Railway sets this automatically)
+    port = int(os.environ.get("PORT", 8000))
+    
     print("🚀 Starting Rule-Based UI Generator...")
     print("📚 No LLM needed - using pure template matching!")
-    print("🌐 API will be available at http://0.0.0.0:8000")
-    print("📖 Docs available at http://0.0.0.0:8000/docs")
+    print(f"🌐 API will be available at http://0.0.0.0:{port}")
+    print(f"📖 Docs available at http://0.0.0.0:{port}/docs")
     
     # Use config instead of run() for better compatibility with Jupyter
     config = uvicorn.Config(
         app,
         host="0.0.0.0",
-        port=8000,
+        port=port,
         log_level="info"
     )
     server = uvicorn.Server(config)

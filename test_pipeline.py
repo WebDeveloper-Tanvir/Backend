@@ -1,41 +1,14 @@
+# backend/test_pipeline.py
 """
-FastAPI Backend - Rule-based UI Generator
-No LLM needed - uses templates and pattern matching
+Test the complete pipeline end-to-end
+Run this to see how it works without starting the server
 """
-
-# Install required packages
-import sys
-import subprocess
-
-def install_package(package):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--quiet"])
-
-# Install dependencies
-try:
-    import uvicorn
-except ImportError:
-    install_package("uvicorn")
-    import uvicorn
-
-try:
-    import nest_asyncio
-except ImportError:
-    install_package("nest_asyncio")
-    import nest_asyncio
-
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional
-import re
-from typing import Dict, List, Any
-from dataclasses import dataclass
-import json
-
-# Apply nest_asyncio to allow nested event loops (for Colab/Jupyter)
-nest_asyncio.apply()
 
 # --- BEGIN INLINED intent_parser.py content ---
+import re
+from typing import Dict, List
+from dataclasses import dataclass
+
 @dataclass
 class Intent:
     """Represents the parsed user intent"""
@@ -169,7 +142,7 @@ class IntentParser:
             modifiers['size'] = 'large'
         elif 'small' in text or 'tiny' in text:
             modifiers['size'] = 'small'
-        numbers = re.findall(r'\b(\d+)\b', text)
+        numbers = re.findall(r'\\b(\\d+)\\b', text)
         if numbers:
             modifiers['count'] = int(numbers[0])
         return modifiers
@@ -201,6 +174,8 @@ class IntentParser:
 # --- END INLINED intent_parser.py content ---
 
 # --- BEGIN INLINED planner.py content ---
+from typing import Any # Already imported Dict, List, dataclass
+
 @dataclass
 class ComponentPlan:
     """Plan for a single component"""
@@ -373,6 +348,9 @@ class Planner:
 # --- END INLINED planner.py content ---
 
 # --- BEGIN INLINED code_generator.py content ---
+# from typing import Dict, List, Any # Already imported
+# import json # Already imported
+
 class CodeGenerator:
     """Generates React code from UI plans"""
 
@@ -504,6 +482,9 @@ class CodeGenerator:
 # --- END INLINED code_generator.py content ---
 
 # --- BEGIN INLINED code_validator.py content ---
+# from typing import Dict, List, Tuple # Already imported Dict, List
+# from dataclasses import dataclass # Already imported dataclass
+
 @dataclass
 class ValidationResult:
     """Result of code validation"""
@@ -632,238 +613,102 @@ class CodeValidator:
 
     def fix_common_issues(self, code: str) -> str:
         fixed_code = code
-        fixed_code = re.sub(r'(import .+)(?<!;)$', r'\1;', fixed_code, flags=re.MULTILINE)
-        fixed_code = re.sub(r'([>}])\s*([<{])', r'\1\n\2', fixed_code)
+        fixed_code = re.sub(r'(import .+)(?<!;)$', r'\\1;', fixed_code, flags=re.MULTILINE)
+        fixed_code = re.sub(r'([>}])\\s*([<{])', r'\\1\\n\\2', fixed_code)
         return fixed_code
 # --- END INLINED code_validator.py content ---
 
+def test_pipeline(prompt: str):
+    """Test the complete pipeline with a prompt"""
+    print("=" * 70)
+    print(f"📝 PROMPT: {prompt}")
+    print("=" * 70)
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="Rule-Based UI Generator",
-    description="Generate React UIs without LLM - pure template matching",
-    version="1.0.0"
-)
+    # Initialize components
+    parser = IntentParser()
+    planner = Planner()
+    generator = CodeGenerator()
+    validator = CodeValidator()
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # For testing - restrict in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    # Step 1: Parse Intent
+    print("\n1️⃣  PARSING INTENT...")
+    intent = parser.parse(prompt)
+    print(f"   Action: {intent.primary_action}")
+    print(f"   UI Type: {intent.ui_type}")
+    print(f"   Components: {intent.components}")
+    print(f"   Layout: {intent.layout}")
+    print(f"   Modifiers: {intent.modifiers}")
+    print(f"   Confidence: {intent.confidence:.2f}")
 
-# Add logging middleware to debug requests
-@app.middleware("http")
-async def log_requests(request, call_next):
-    print(f"📥 Incoming request: {request.method} {request.url.path}")
-    print(f"   Headers: {dict(request.headers)}")
-    response = await call_next(request)
-    print(f"📤 Response status: {response.status_code}")
-    return response
-
-# Initialize pipeline components
-intent_parser = IntentParser()
-planner = Planner()
-code_generator = CodeGenerator()
-code_validator = CodeValidator()
-
-# Request/Response models
-class GenerateRequest(BaseModel):
-    """Request model for UI generation"""
-    prompt: str
-    current_code: Optional[str] = None
-
-class GenerateResponse(BaseModel):
-    """Response model for UI generation"""
-    code: str
-    explanation: str
-    plan: dict
-    validation: dict
-
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "message": "Rule-Based UI Generator API",
-        "version": "1.0.0",
-        "endpoints": {
-            "health": "/health",
-            "generate": "/api/generate",
-            "generate_v1": "/api/v1/generate",
-            "templates": "/api/v1/templates",
-            "examples": "/api/v1/examples",
-            "docs": "/docs"
-        },
-        "note": "Both /api/generate and /api/v1/generate endpoints are available"
-    }
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "pipeline": "rule-based",
-        "components": {
-            "intent_parser": "active",
-            "planner": "active",
-            "code_generator": "active",
-            "code_validator": "active"
-        }
-    }
-
-async def _generate_ui_logic(request: GenerateRequest) -> GenerateResponse:
-    """
-    Core UI generation logic (shared between endpoints)
-    """
-    prompt = request.prompt.strip()
-
-    if not prompt:
-        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
-
-    # Step 1: Parse intent
-    print(f"📝 Parsing intent: {prompt[:50]}...")
-    intent = intent_parser.parse(prompt)
-    print(f"✅ Intent parsed: {intent.ui_type} with {len(intent.components)} components")
-
-    # Step 2: Create plan
-    print(f"📋 Creating plan...")
+    # Step 2: Create Plan
+    print("\n2️⃣  CREATING PLAN...")
     plan = planner.create_plan(intent)
-    print(f"✅ Plan created: {len(plan.components)} components planned")
+    print(f"   Layout Type: {plan.layout_type}")
+    print(f"   Components Planned: {len(plan.components)}")
+    print(f"   Reasoning: {plan.reasoning}")
 
-    # Step 3: Generate code
-    print(f"🔨 Generating code...")
-    code = code_generator.generate(plan)
-    print(f"✅ Code generated: {len(code)} characters")
+    # Step 3: Generate Code
+    print("\n3️⃣  GENERATING CODE...")
+    code = generator.generate(plan)
+    print(f"   Code Length: {len(code)} characters")
+    print(f"   Lines: {len(code.split(chr(10)))} lines")
 
-    # Step 4: Validate code
-    print(f"✔️  Validating code...")
-    validation_result = code_validator.validate(code)
-    print(f"✅ Validation complete: {'PASS' if validation_result.is_valid else 'FAIL'}")
+    # Step 4: Validate Code
+    print("\n4️⃣  VALIDATING CODE...")
+    validation = validator.validate(code)
+    print(f"   Valid: {validation.is_valid}")
+    print(f"   Errors: {len(validation.errors)}")
+    print(f"   Warnings: {len(validation.warnings)}")
+    print(f"   Suggestions: {len(validation.suggestions)}")
 
-    # If validation fails, try to fix
-    if not validation_result.is_valid:
-        print(f"🔧 Attempting to fix issues...")
-        code = code_validator.fix_common_issues(code)
-        validation_result = code_validator.validate(code)
+    if validation.errors:
+        print("\n   ⚠️  Errors:")
+        for error in validation.errors:
+            print(f"      - {error}")
 
-    # Prepare response
-    response = GenerateResponse(
-        code=code,
-        explanation=plan.reasoning,
-        plan={
-            "layout": plan.layout_type,
-            "components": [
-                {"type": c.type, "props": c.props}
-                for c in plan.components
-            ],
-            "imports": plan.imports
-        },
-        validation={
-            "is_valid": validation_result.is_valid,
-            "errors": validation_result.errors,
-            "warnings": validation_result.warnings,
-            "suggestions": validation_result.suggestions
-        }
-    )
+    if validation.warnings:
+        print("\n   ⚠️  Warnings:")
+        for warning in validation.warnings:
+            print(f"      - {warning}")
 
-    print(f"🎉 Generation complete!")
-    return response
+    # Display Generated Code
+    print("\n" + "=" * 70)
+    print("✅ GENERATED CODE:")
+    print("=" * 70)
+    print(code)
+    print("=" * 70)
 
-@app.post("/api/v1/generate", response_model=GenerateResponse)
-async def generate_ui_v1(request: GenerateRequest):
-    """
-    Generate UI from natural language prompt (v1 endpoint)
+    return code, validation
 
-    Pipeline:
-    1. Parse intent from prompt
-    2. Create structured plan
-    3. Generate React code
-    4. Validate code
-    5. Return result
-    """
-    try:
-        return await _generate_ui_logic(request)
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/generate", response_model=GenerateResponse)
-async def generate_ui(request: GenerateRequest):
-    """
-    Generate UI from natural language prompt (legacy endpoint for frontend compatibility)
-    """
-    try:
-        return await _generate_ui_logic(request)
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/v1/templates")
-async def list_templates():
-    """List available UI templates"""
-    return {
-        "templates": list(planner.TEMPLATES.keys()),
-        "components": list(intent_parser.COMPONENTS.keys())
-    }
-
-@app.get("/api/v1/examples")
-async def get_examples():
-    """Get example prompts"""
-    return {
-        "examples": [
-            {
-                "prompt": "Create a dashboard with 3 cards and 2 charts",
-                "type": "dashboard"
-            },
-            {
-                "prompt": "Build a login form with email and password inputs",
-                "type": "form"
-            },
-            {
-                "prompt": "Make a data table with 5 columns",
-                "type": "table"
-            },
-            {
-                "prompt": "Create a navbar with logo and menu items",
-                "type": "navbar"
-            },
-            {
-                "prompt": "Add a modal with title and buttons",
-                "type": "modal"
-            }
-        ]
-    }
-
-# Run the application
-def run_server():
-    """Run the FastAPI server"""
-    print("🚀 Starting Rule-Based UI Generator...")
-    print("📚 No LLM needed - using pure template matching!")
-    print("🌐 API will be available at http://0.0.0.0:8000")
-    print("📖 Docs available at http://0.0.0.0:8000/docs")
-    
-    # Use config instead of run() for better compatibility with Jupyter
-    config = uvicorn.Config(
-        app,
-        host="0.0.0.0",
-        port=8000,
-        log_level="info"
-    )
-    server = uvicorn.Server(config)
-    
-    # Run in the current event loop
-    import asyncio
-    loop = asyncio.get_event_loop()
-    loop.create_task(server.serve())
-    
-    print("✅ Server started! Press Ctrl+C to stop.")
-    return server
 
 if __name__ == "__main__":
-    server = run_server()
+    # Test cases
+    test_cases = [
+        "Create a dashboard with 3 cards and 2 charts",
+        "Build a login form with email and password",
+        "Make a data table with 5 columns",
+        "Create a navbar with logo and menu",
+        "Add a modal with title and buttons",
+    ]
+
+    print("\n" + "🚀" * 35)
+    print("RULE-BASED UI GENERATOR - PIPELINE TEST")
+    print("🚀" * 35 + "\n")
+
+    for i, test_case in enumerate(test_cases, 1):
+        print(f"\n{'*' * 70}")
+        print(f"TEST CASE {i}/{len(test_cases)}")
+        print(f"{'*' * 70}\n")
+
+        code, validation = test_pipeline(test_case)
+
+        if validation.is_valid:
+            print(f"\n✅ Test {i} PASSED - Code is valid!\n")
+        else:
+            print(f"\n❌ Test {i} FAILED - Code has errors!\n")
+
+        input("\nPress Enter to continue to next test...\n")
+
+    print("\n" + "🎉" * 35)
+    print("ALL TESTS COMPLETE!")
+    print("🎉" * 35 + "\n")

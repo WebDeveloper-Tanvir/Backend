@@ -1,41 +1,23 @@
+# backend/code_generator.py
 """
-FastAPI Backend - Rule-based UI Generator
-No LLM needed - uses templates and pattern matching
+Code Generator - Converts UI plans into React code
+Pure template-based generation, no LLM needed
 """
 
-# Install required packages
-import sys
-import subprocess
-
-def install_package(package):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--quiet"])
-
-# Install dependencies
-try:
-    import uvicorn
-except ImportError:
-    install_package("uvicorn")
-    import uvicorn
-
-try:
-    import nest_asyncio
-except ImportError:
-    install_package("nest_asyncio")
-    import nest_asyncio
-
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional
-import re
 from typing import Dict, List, Any
-from dataclasses import dataclass
 import json
 
-# Apply nest_asyncio to allow nested event loops (for Colab/Jupyter)
-nest_asyncio.apply()
+# --- BEGIN INLINED planner.py content ---
+# This content was moved here to resolve ModuleNotFoundError
+# as direct imports between Colab cells posing as files is not automatic.
 
 # --- BEGIN INLINED intent_parser.py content ---
+# This content was moved here to resolve ModuleNotFoundError
+# as direct imports between Colab cells posing as files is not automatic.
+import re
+# from typing import Dict, List, Optional, Any # Already imported Dict, List, Any above
+from dataclasses import dataclass # Already imported dataclass above
+
 @dataclass
 class Intent:
     """Represents the parsed user intent"""
@@ -49,6 +31,7 @@ class Intent:
 class IntentParser:
     """Parses user input to determine what UI to build"""
 
+    # Keyword mappings
     ACTIONS = {
         'create': ['create', 'make', 'build', 'generate', 'new'],
         'add': ['add', 'include', 'insert', 'put'],
@@ -102,16 +85,39 @@ class IntentParser:
     }
 
     def __init__(self):
+        """Initialize the intent parser"""
         pass
 
     def parse(self, user_input: str) -> Intent:
+        """
+        Parse user input and return intent
+
+        Args:
+            user_input: Raw user input string
+
+        Returns:
+            Intent object with parsed information
+        """
         user_input = user_input.lower().strip()
+
+        # Extract action
         action = self._extract_action(user_input)
+
+        # Extract UI type
         ui_type = self._extract_ui_type(user_input)
+
+        # Extract components
         components = self._extract_components(user_input)
+
+        # Extract layout
         layout = self._extract_layout(user_input)
+
+        # Extract modifiers (variant, color, etc.)
         modifiers = self._extract_modifiers(user_input)
+
+        # Calculate confidence
         confidence = self._calculate_confidence(action, ui_type, components)
+
         return Intent(
             primary_action=action,
             ui_type=ui_type,
@@ -122,59 +128,81 @@ class IntentParser:
         )
 
     def _extract_action(self, text: str) -> str:
+        """Extract the primary action from text"""
         for action, keywords in self.ACTIONS.items():
             if any(keyword in text for keyword in keywords):
                 return action
-        return 'create'
+        return 'create'  # Default action
 
     def _extract_ui_type(self, text: str) -> str:
+        """Extract the UI type from text"""
         for ui_type, keywords in self.UI_TYPES.items():
             if any(keyword in text for keyword in keywords):
                 return ui_type
+
+        # If no specific type found, infer from components
         if 'input' in text and 'button' in text:
             return 'form'
         elif 'card' in text or 'kpi' in text:
             return 'dashboard'
-        return 'generic'
+
+        return 'generic'  # Default
 
     def _extract_components(self, text: str) -> List[str]:
+        """Extract component names from text"""
         found_components = []
+
         for component, keywords in self.COMPONENTS.items():
             if any(keyword in text for keyword in keywords):
                 if component not in found_components:
                     found_components.append(component)
+
+        # If no components found, infer from UI type
         if not found_components:
             found_components = self._infer_components_from_ui_type(
                 self._extract_ui_type(text)
             )
+
         return found_components
 
     def _extract_layout(self, text: str) -> str:
+        """Extract layout type from text"""
         for layout, keywords in self.LAYOUTS.items():
             if any(keyword in text for keyword in keywords):
                 return layout
-        return 'flex'
+        return 'flex'  # Default layout
 
     def _extract_modifiers(self, text: str) -> Dict[str, any]:
+        """Extract additional modifiers (variant, color, etc.)"""
         modifiers = {}
+
+        # Extract variant
         for variant, keywords in self.VARIANTS.items():
             if any(keyword in text for keyword in keywords):
                 modifiers['variant'] = variant
                 break
+
+        # Extract color
         for color, keywords in self.COLORS.items():
             if any(keyword in text for keyword in keywords):
                 modifiers['color'] = color
                 break
+
+        # Extract size
         if 'large' in text or 'big' in text:
             modifiers['size'] = 'large'
         elif 'small' in text or 'tiny' in text:
             modifiers['size'] = 'small'
-        numbers = re.findall(r'\b(\d+)\b', text)
+
+        # Extract numbers (for tables, charts, etc.)
+        numbers = re.findall(r'\\b(\\d+)\\b', text)
         if numbers:
             modifiers['count'] = int(numbers[0])
+
         return modifiers
 
     def _infer_components_from_ui_type(self, ui_type: str) -> List[str]:
+        """Infer default components based on UI type"""
         defaults = {
             'dashboard': ['Card', 'Chart'],
             'form': ['Input', 'Button'],
@@ -190,17 +218,21 @@ class IntentParser:
 
     def _calculate_confidence(self, action: str, ui_type: str,
                             components: List[str]) -> float:
-        score = 0.5
+        """Calculate confidence score for the parsed intent"""
+        score = 0.5  # Base score
+
         if action != 'create':
             score += 0.1
+
         if ui_type != 'generic':
             score += 0.2
+
         if components:
             score += 0.2
+
         return min(score, 1.0)
 # --- END INLINED intent_parser.py content ---
 
-# --- BEGIN INLINED planner.py content ---
 @dataclass
 class ComponentPlan:
     """Plan for a single component"""
@@ -221,6 +253,7 @@ class UIPlan:
 class Planner:
     """Creates structured plans from user intent"""
 
+    # Template definitions for common UI patterns
     TEMPLATES = {
         'dashboard': {
             'layout': 'grid',
@@ -255,14 +288,34 @@ class Planner:
     }
 
     def __init__(self):
+        """Initialize the planner"""
         pass
 
     def create_plan(self, intent: Intent) -> UIPlan:
+        """
+        Create a UI plan from intent
+
+        Args:
+            intent: Parsed intent object
+
+        Returns:
+            UIPlan with complete component structure
+        """
+        # Get template based on UI type
         template = self.TEMPLATES.get(intent.ui_type, self.TEMPLATES['form'])
+
+        # Create container props
         container_props = template['container'].copy()
+
+        # Plan components
         components = self._plan_components(intent, template)
+
+        # Determine imports
         imports = self._determine_imports(components)
+
+        # Generate reasoning
         reasoning = self._generate_reasoning(intent, components)
+
         return UIPlan(
             layout_type=template['layout'],
             container_props=container_props,
@@ -272,8 +325,11 @@ class Planner:
         )
 
     def _plan_components(self, intent: Intent, template: Dict) -> List[ComponentPlan]:
+        """Plan individual components based on intent"""
         planned_components = []
+
         if intent.components:
+            # User specified components
             for idx, component_type in enumerate(intent.components):
                 component = self._create_component_plan(
                     component_type,
@@ -282,6 +338,7 @@ class Planner:
                 )
                 planned_components.append(component)
         else:
+            # Use template defaults
             for comp_def in template.get('default_components', []):
                 count = comp_def.get('count', 1)
                 for i in range(count):
@@ -291,10 +348,14 @@ class Planner:
                         position={'row': i // 3, 'col': i % 3}
                     )
                     planned_components.append(component)
+
         return planned_components
 
     def _create_component_plan(self, component_type: str, modifiers: Dict,
                                position: Dict) -> ComponentPlan:
+        """Create a plan for a single component"""
+
+        # Base props for each component type
         base_props = {
             'Button': {
                 'variant': modifiers.get('variant', 'primary'),
@@ -335,13 +396,17 @@ class Planner:
                 'children': 'Modal content goes here',
             },
         }
+
         props = base_props.get(component_type, {}).copy()
+
+        # Apply modifiers
         if 'variant' in modifiers:
             props['variant'] = modifiers['variant']
         if 'color' in modifiers:
             props['color'] = modifiers['color']
         if 'size' in modifiers:
             props['size'] = modifiers['size']
+
         return ComponentPlan(
             type=component_type,
             props=props,
@@ -350,64 +415,101 @@ class Planner:
         )
 
     def _determine_imports(self, components: List[ComponentPlan]) -> List[str]:
+        """Determine required imports based on components"""
         component_types = set(comp.type for comp in components)
+
         imports = [
             f"import {comp_type} from '@/components/ui/{comp_type}';"
             for comp_type in component_types
         ]
+
+        # Add recharts import if Chart is used
         if 'Chart' in component_types:
             imports.append("import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';")
+
         return imports
 
     def _generate_reasoning(self, intent: Intent,
                            components: List[ComponentPlan]) -> str:
+        """Generate human-readable reasoning for the plan"""
         component_names = [comp.type for comp in components]
         unique_components = list(set(component_names))
+
         reasoning = f"Created a {intent.ui_type} layout using "
         reasoning += f"{len(components)} component(s): {', '.join(unique_components)}. "
+
         if intent.layout:
             reasoning += f"Arranged in a {intent.layout} layout. "
+
         if intent.modifiers:
             reasoning += f"Applied modifiers: {intent.modifiers}."
+
         return reasoning
 # --- END INLINED planner.py content ---
 
-# --- BEGIN INLINED code_generator.py content ---
 class CodeGenerator:
     """Generates React code from UI plans"""
 
     def __init__(self):
+        """Initialize the code generator"""
         pass
 
     def generate(self, plan: UIPlan) -> str:
+        """
+        Generate React code from a UI plan
+
+        Args:
+            plan: UIPlan object with component structure
+
+        Returns:
+            Complete React component code as string
+        """
+        # Generate imports
         imports = self._generate_imports(plan.imports)
+
+        # Generate component code
         component_code = self._generate_component(plan)
+
+        # Combine into complete code
         full_code = f"{imports}\n\n{component_code}"
+
         return full_code
 
     def _generate_imports(self, imports: List[str]) -> str:
+        """Generate import statements"""
         if not imports:
             return ""
+
         return "\n".join(imports)
 
     def _generate_component(self, plan: UIPlan) -> str:
+        """Generate the main component code"""
+        # Generate JSX for all components
         components_jsx = []
         for comp_plan in plan.components:
             jsx = self._generate_component_jsx(comp_plan)
             components_jsx.append(jsx)
+
+        # Get container classes
         container_class = plan.container_props.get('className', '')
+
+        # Build component
         code = f"""export default function GeneratedComponent() {{
   return (
-    <div className=\"{container_class}\">
+    <div className="{container_class}">
 {self._indent(chr(10).join(components_jsx), 6)}
     </div>
   );
 }}"""
+
         return code
 
     def _generate_component_jsx(self, comp_plan: ComponentPlan) -> str:
+        """Generate JSX for a single component"""
         comp_type = comp_plan.type
         props = comp_plan.props
+
+        # Component-specific JSX generation
         if comp_type == 'Button':
             return self._generate_button(props)
         elif comp_type == 'Card':
@@ -428,13 +530,17 @@ class CodeGenerator:
             return f"<div>Unsupported component: {comp_type}</div>"
 
     def _generate_button(self, props: Dict) -> str:
+        """Generate Button JSX"""
         variant = props.get('variant', 'primary')
         children = props.get('children', 'Button')
-        return f'<Button variant=\"{variant}\">{children}</Button>'
+
+        return f'<Button variant="{variant}">{children}</Button>'
 
     def _generate_card(self, props: Dict) -> str:
+        """Generate Card JSX"""
         title = props.get('title', 'Card Title')
         content = props.get('content', 'Card content goes here.')
+
         return f'''<Card>
   <Card.Title>{title}</Card.Title>
   <Card.Content>
@@ -443,427 +549,101 @@ class CodeGenerator:
 </Card>'''
 
     def _generate_input(self, props: Dict) -> str:
+        """Generate Input JSX"""
         label = props.get('label', 'Label')
         placeholder = props.get('placeholder', 'Enter value...')
-        return f'<Input label=\"{label}\" placeholder=\"{placeholder}\" />'
+
+        return f'<Input label="{label}" placeholder="{placeholder}" />'
 
     def _generate_table(self, props: Dict) -> str:
+        """Generate Table JSX"""
         columns = props.get('columns', ['Column 1', 'Column 2'])
         data = props.get('data', [])
-        col_defs = ', '.join([f'{{ header: \"{col}\", accessor: \"{col.lower().replace(" ", "_")}\" }}'
+
+        # Generate column definitions
+        col_defs = ', '.join([f'{{ header: "{col}", accessor: "{col.lower().replace(" ", "_")}" }}'
                              for col in columns])
+
+        # Generate data array
         data_str = json.dumps(data, indent=2)
+
         return f'''<Table>
   columns={{[{col_defs}]}}
   data={{data}}
 />'''
 
     def _generate_chart(self, props: Dict) -> str:
+        """Generate Chart JSX"""
         chart_type = props.get('type', 'line')
         data = props.get('data', [])
+
         data_str = json.dumps(data, indent=2)
+
         if chart_type == 'line':
-            return f'''<Chart type=\"line\" data={{{data_str}}} />'''
+            return f'''<Chart type="line" data={{{data_str}}} />'''
         elif chart_type == 'bar':
-            return f'''<Chart type=\"bar\" data={{{data_str}}} />'''
+            return f'''<Chart type="bar" data={{{data_str}}} />'''
         else:
-            return f'''<Chart type=\"line\" data={{{data_str}}} />'''
+            return f'''<Chart type="line" data={{{data_str}}} />'''
 
     def _generate_navbar(self, props: Dict) -> str:
+        """Generate Navbar JSX"""
         brand = props.get('brand', 'Brand')
         links = props.get('links', ['Home', 'About'])
-        return f'''<Navbar brand=\"{brand}\">
+
+        return f'''<Navbar brand="{brand}">
   {' '.join([f'<Navbar.Link>{link}</Navbar.Link>' for link in links])}
 </Navbar>'''
 
     def _generate_sidebar(self, props: Dict) -> str:
+        """Generate Sidebar JSX"""
         items = props.get('items', ['Item 1', 'Item 2'])
+
         items_jsx = '\n  '.join([f'<Sidebar.Item>{item}</Sidebar.Item>' for item in items])
+
         return f'''<Sidebar>
   {items_jsx}
 </Sidebar>'''
 
     def _generate_modal(self, props: Dict) -> str:
+        """Generate Modal JSX"""
         title = props.get('title', 'Modal Title')
         children = props.get('children', 'Modal content')
+
         return f'''<Modal>
   <Modal.Title>{title}</Modal.Title>
   <Modal.Content>
     <p>{children}</p>
   </Modal.Content>
   <Modal.Footer>
-    <Button variant=\"primary\">Save</Button>
-    <Button variant=\"secondary\">Cancel</Button>
+    <Button variant="primary">Save</Button>
+    <Button variant="secondary">Cancel</Button>
   </Modal.Footer>
 </Modal>'''
 
     def _indent(self, text: str, spaces: int) -> str:
+        """Add indentation to text"""
         indent = ' ' * spaces
         return '\n'.join(indent + line if line.strip() else line
                         for line in text.split('\n'))
-# --- END INLINED code_generator.py content ---
-
-# --- BEGIN INLINED code_validator.py content ---
-@dataclass
-class ValidationResult:
-    """Result of code validation"""
-    is_valid: bool
-    errors: List[str]
-    warnings: List[str]
-    suggestions: List[str]
-
-class CodeValidator:
-    """Validates generated React code"""
-
-    ALLOWED_COMPONENTS = [
-        'Button', 'Card', 'Input', 'Table', 'Chart',
-        'Navbar', 'Sidebar', 'Modal'
-    ]
-
-    REQUIRED_IMPORTS = {
-        'Button': "import Button from '@/components/ui/Button';",
-        'Card': "import Card from '@/components/ui/Card';",
-        'Input': "import Input from '@/components/ui/Input';",
-        'Table': "import Table from '@/components/ui/Table';",
-        'Chart': "import Chart from '@/components/ui/Chart';",
-        'Navbar': "import Navbar from '@/components/ui/Navbar';",
-        'Sidebar': "import Sidebar from '@/components/ui/Sidebar';",
-        'Modal': "import Modal from '@/components/ui/Modal';",
-    }
-
-    def __init__(self):
-        pass
-
-    def validate(self, code: str) -> ValidationResult:
-        errors = []
-        warnings = []
-        suggestions = []
-        syntax_errors = self._check_syntax(code)
-        errors.extend(syntax_errors)
-        component_errors = self._check_components(code)
-        errors.extend(component_errors)
-        import_warnings = self._check_imports(code)
-        warnings.extend(import_warnings)
-        prop_warnings = self._check_props(code)
-        warnings.extend(prop_warnings)
-        best_practice_suggestions = self._check_best_practices(code)
-        suggestions.extend(best_practice_suggestions)
-        a11y_suggestions = self._check_accessibility(code)
-        suggestions.extend(a11y_suggestions)
-        is_valid = len(errors) == 0
-        return ValidationResult(
-            is_valid=is_valid,
-            errors=errors,
-            warnings=warnings,
-            suggestions=suggestions
-        )
-
-    def _check_syntax(self, code: str) -> List[str]:
-        errors = []
-        open_tags = re.findall(r'<(\w+)[^/>]*>', code)
-        close_tags = re.findall(r'</(\w+)>', code)
-        self_closing = re.findall(r'<(\w+)[^>]*/>', code)
-        for tag in self_closing:
-            if tag in open_tags:
-                open_tags.remove(tag)
-        if len(open_tags) != len(close_tags):
-            errors.append(f"Mismatched JSX tags: {len(open_tags)} open, {len(close_tags)} close")
-        open_braces = code.count('{')
-        close_braces = code.count('}')
-        if open_braces != close_braces:
-            errors.append(f"Mismatched braces: {open_braces} open, {close_braces} close")
-        open_parens = code.count('(')
-        close_parens = code.count(')')
-        if open_parens != close_parens:
-            errors.append(f"Mismatched parentheses: {open_parens} open, {close_parens} close")
-        if 'export default' not in code:
-            errors.append("Missing 'export default' statement")
-        return errors
-
-    def _check_components(self, code: str) -> List[str]:
-        errors = []
-        components_used = re.findall(r'<(\w+)', code)
-        html_elements = ['div', 'span', 'p', 'h1', 'h2', 'h3', 'section', 'article']
-        components_used = [c for c in components_used if c not in html_elements]
-        for component in set(components_used):
-            base_component = component.split('.')[0]
-            if base_component not in self.ALLOWED_COMPONENTS:
-                errors.append(f"Unauthorized component used: {component}")
-        return errors
-
-    def _check_imports(self, code: str) -> List[str]:
-        warnings = []
-        components_used = re.findall(r'<(\w+)', code)
-        components_used = [c.split('.')[0] for c in components_used]
-        for component in set(components_used):
-            if component in self.ALLOWED_COMPONENTS:
-                required_import = self.REQUIRED_IMPORTS[component]
-                if required_import not in code:
-                    warnings.append(f"Missing import for component: {component}")
-        return warnings
-
-    def _check_props(self, code: str) -> List[str]:
-        warnings = []
-        if 'style={{' in code or 'style={' in code:
-            warnings.append("Inline styles detected - use Tailwind classes instead")
-        if 'className=' not in code:
-            warnings.append("No className detected - consider adding Tailwind classes")
-        return warnings
-
-    def _check_best_practices(self, code: str) -> List[str]:
-        suggestions = []
-        if '.map(' in code and 'key=' not in code:
-            suggestions.append("Consider adding 'key' prop when rendering lists")
-        if not re.search(r'export default function [A-Z]\w+', code):
-            suggestions.append("Component name should be PascalCase")
-        if 'function' in code and 'props.' in code:
-            suggestions.append("Consider destructuring props in function signature")
-        return suggestions
-
-    def _check_accessibility(self, code: str) -> List[str]:
-        suggestions = []
-        buttons = re.findall(r'<Button[^>]*>', code)
-        for button in buttons:
-            if 'aria-label' not in button and '>' not in button:
-                suggestions.append("Add aria-label or text content to buttons")
-        if '<img' in code and 'alt=' not in code:
-            suggestions.append("Add alt text to images for accessibility")
-        return suggestions
-
-    def fix_common_issues(self, code: str) -> str:
-        fixed_code = code
-        fixed_code = re.sub(r'(import .+)(?<!;)$', r'\1;', fixed_code, flags=re.MULTILINE)
-        fixed_code = re.sub(r'([>}])\s*([<{])', r'\1\n\2', fixed_code)
-        return fixed_code
-# --- END INLINED code_validator.py content ---
 
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="Rule-Based UI Generator",
-    description="Generate React UIs without LLM - pure template matching",
-    version="1.0.0"
-)
+# Example usage
+if __name__ == '__main__':
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # For testing - restrict in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    parser = IntentParser()
+    planner = Planner()
+    generator = CodeGenerator()
 
-# Add logging middleware to debug requests
-@app.middleware("http")
-async def log_requests(request, call_next):
-    print(f"📥 Incoming request: {request.method} {request.url.path}")
-    print(f"   Headers: {dict(request.headers)}")
-    response = await call_next(request)
-    print(f"📤 Response status: {response.status_code}")
-    return response
+    test_input = "Create a dashboard with 2 cards and a chart"
 
-# Initialize pipeline components
-intent_parser = IntentParser()
-planner = Planner()
-code_generator = CodeGenerator()
-code_validator = CodeValidator()
-
-# Request/Response models
-class GenerateRequest(BaseModel):
-    """Request model for UI generation"""
-    prompt: str
-    current_code: Optional[str] = None
-
-class GenerateResponse(BaseModel):
-    """Response model for UI generation"""
-    code: str
-    explanation: str
-    plan: dict
-    validation: dict
-
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "message": "Rule-Based UI Generator API",
-        "version": "1.0.0",
-        "endpoints": {
-            "health": "/health",
-            "generate": "/api/generate",
-            "generate_v1": "/api/v1/generate",
-            "templates": "/api/v1/templates",
-            "examples": "/api/v1/examples",
-            "docs": "/docs"
-        },
-        "note": "Both /api/generate and /api/v1/generate endpoints are available"
-    }
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "pipeline": "rule-based",
-        "components": {
-            "intent_parser": "active",
-            "planner": "active",
-            "code_generator": "active",
-            "code_validator": "active"
-        }
-    }
-
-async def _generate_ui_logic(request: GenerateRequest) -> GenerateResponse:
-    """
-    Core UI generation logic (shared between endpoints)
-    """
-    prompt = request.prompt.strip()
-
-    if not prompt:
-        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
-
-    # Step 1: Parse intent
-    print(f"📝 Parsing intent: {prompt[:50]}...")
-    intent = intent_parser.parse(prompt)
-    print(f"✅ Intent parsed: {intent.ui_type} with {len(intent.components)} components")
-
-    # Step 2: Create plan
-    print(f"📋 Creating plan...")
+    # Pipeline
+    intent = parser.parse(test_input)
     plan = planner.create_plan(intent)
-    print(f"✅ Plan created: {len(plan.components)} components planned")
+    code = generator.generate(plan)
 
-    # Step 3: Generate code
-    print(f"🔨 Generating code...")
-    code = code_generator.generate(plan)
-    print(f"✅ Code generated: {len(code)} characters")
-
-    # Step 4: Validate code
-    print(f"✔️  Validating code...")
-    validation_result = code_validator.validate(code)
-    print(f"✅ Validation complete: {'PASS' if validation_result.is_valid else 'FAIL'}")
-
-    # If validation fails, try to fix
-    if not validation_result.is_valid:
-        print(f"🔧 Attempting to fix issues...")
-        code = code_validator.fix_common_issues(code)
-        validation_result = code_validator.validate(code)
-
-    # Prepare response
-    response = GenerateResponse(
-        code=code,
-        explanation=plan.reasoning,
-        plan={
-            "layout": plan.layout_type,
-            "components": [
-                {"type": c.type, "props": c.props}
-                for c in plan.components
-            ],
-            "imports": plan.imports
-        },
-        validation={
-            "is_valid": validation_result.is_valid,
-            "errors": validation_result.errors,
-            "warnings": validation_result.warnings,
-            "suggestions": validation_result.suggestions
-        }
-    )
-
-    print(f"🎉 Generation complete!")
-    return response
-
-@app.post("/api/v1/generate", response_model=GenerateResponse)
-async def generate_ui_v1(request: GenerateRequest):
-    """
-    Generate UI from natural language prompt (v1 endpoint)
-
-    Pipeline:
-    1. Parse intent from prompt
-    2. Create structured plan
-    3. Generate React code
-    4. Validate code
-    5. Return result
-    """
-    try:
-        return await _generate_ui_logic(request)
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/generate", response_model=GenerateResponse)
-async def generate_ui(request: GenerateRequest):
-    """
-    Generate UI from natural language prompt (legacy endpoint for frontend compatibility)
-    """
-    try:
-        return await _generate_ui_logic(request)
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/v1/templates")
-async def list_templates():
-    """List available UI templates"""
-    return {
-        "templates": list(planner.TEMPLATES.keys()),
-        "components": list(intent_parser.COMPONENTS.keys())
-    }
-
-@app.get("/api/v1/examples")
-async def get_examples():
-    """Get example prompts"""
-    return {
-        "examples": [
-            {
-                "prompt": "Create a dashboard with 3 cards and 2 charts",
-                "type": "dashboard"
-            },
-            {
-                "prompt": "Build a login form with email and password inputs",
-                "type": "form"
-            },
-            {
-                "prompt": "Make a data table with 5 columns",
-                "type": "table"
-            },
-            {
-                "prompt": "Create a navbar with logo and menu items",
-                "type": "navbar"
-            },
-            {
-                "prompt": "Add a modal with title and buttons",
-                "type": "modal"
-            }
-        ]
-    }
-
-# Run the application
-def run_server():
-    """Run the FastAPI server"""
-    print("🚀 Starting Rule-Based UI Generator...")
-    print("📚 No LLM needed - using pure template matching!")
-    print("🌐 API will be available at http://0.0.0.0:8000")
-    print("📖 Docs available at http://0.0.0.0:8000/docs")
-    
-    # Use config instead of run() for better compatibility with Jupyter
-    config = uvicorn.Config(
-        app,
-        host="0.0.0.0",
-        port=8000,
-        log_level="info"
-    )
-    server = uvicorn.Server(config)
-    
-    # Run in the current event loop
-    import asyncio
-    loop = asyncio.get_event_loop()
-    loop.create_task(server.serve())
-    
-    print("✅ Server started! Press Ctrl+C to stop.")
-    return server
-
-if __name__ == "__main__":
-    server = run_server()
+    print(f"Input: {test_input}\n")
+    print("Generated Code:")
+    print("=" * 60)
+    print(code)
+    print("=" * 60)

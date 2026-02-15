@@ -2,11 +2,19 @@
 FastAPI Backend - Rule-based UI Generator
 """
 
-import sys
-import subprocess
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional
 import os
 
-def install_package(package):
+# Import local modules
+from intent_parser import IntentParser
+from planner import Planner
+from code_generator import CodeGenerator
+from code_validator import CodeValidator
+
+# ... rest of your codedef install_package(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--quiet"])
 
 # Install dependencies
@@ -22,24 +30,8 @@ except ImportError:
     install_package("nest_asyncio")
     import nest_asyncio
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional
-
 # Apply nest_asyncio
 nest_asyncio.apply()
-
-# Import local modules
-try:
-    from intent_parser import IntentParser
-    from planner import Planner
-    from code_generator import CodeGenerator
-    from code_validator import CodeValidator
-except ImportError as e:
-    print(f"Warning: Could not import modules: {e}")
-    print("Make sure all Python files are in the same directory")
-    sys.exit(1)
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -191,3 +183,4 @@ def run_server():
 
 if __name__ == "__main__":
     server = run_server()
+

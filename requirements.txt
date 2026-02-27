@@ -1,3 +1,17 @@
-fastapi==0.115.0
-uvicorn[standard]==0.32.1
-pydantic==2.10.3
+# Errorless LLM — Python dependencies
+
+# Core ML
+torch>=2.0.0           # transformer, training, inference
+# Install CUDA version: pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+# Server
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.0.0
+
+# Optional: download CodeSearchNet training data
+datasets>=2.0.0        # pip install datasets
+
+# Dev / testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0

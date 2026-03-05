@@ -15,3 +15,8 @@ datasets>=2.0.0        # pip install datasets
 # Dev / testing
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+
+fastapi
+uvicorn[standard]
+httpx
+pydantic
